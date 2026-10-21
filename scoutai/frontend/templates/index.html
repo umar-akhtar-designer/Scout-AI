@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScoutAI - Multi-Model Deep Research Agent</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body data-theme="light">
+    <div class="page">
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2L2 7h3v10H2V7l10-5 10 5-10 5zM2 17h3v5h10v-5H2z"/>
+                    </svg>
+                    <span>ScoutAI</span>
+                </div>
+                <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" id="moonIcon" style="display:none;">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" id="sunIcon">
+                        <circle cx="12" cy="12" r="5"/>
+                        <path d="M12 1v4M12 19v4M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h4M19 12h4"/>
+                    </svg>
+                </button>
+            </div>
+            <nav class="header-nav">
+                <a href="/api/contract" target="_blank" class="nav-link">API Contract</a>
+                <a href="/health" target="_blank" class="nav-link">Health</a>
+            </nav>
+        </header>
+
+        <main class="main">
+            <section class="search-area" id="searchArea">
+                <div class="search-wrapper">
+                    <div class="search-box">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="search-icon">
+                            <path d="M15.5 14h2.8l2.1-3.5H19c.55 0 1 .45 1 1v2c0 .55-.45 1-1 1h-2.1l.8 3.5c.5.8-.2 1.7-.98 1.7h-3.6l-.9-3.5H15.5c-.55 0-1-.45-1-1v-2c0-.55.45-1 1-1zm-4 1c-.55 0-1-.45-1-1v-2c0-.55.45-1 1-1h1c.55 0 1 .45 1 1v2c0 .55-.45 1-1zm4.6-5.8c-.55 0-1-.45-1-1h-2c-.55 0-1 .45-1 1v2c0 .55.45 1 1h2c.55 0 1-.45 1-1v-2zm-1.4 6.2c-.25.21-.38.49-.45.78-.02.1-.03.2-.05.3l-1.6 3.1c-.2.4-.6 1.2-1.2 1.9-.6.7-1.3 1.4-2.2 1.9-.7.4-1.3.7-2.2.7h-2.2l-.8-1.6c-.2-.3-.4-.6-.6-.9a.45.45 0 0 1-.12-.33l.9-1.8c.3-.5.6-1.2 1-1.6 .4-.4.8-.7 1.2-.9.3-.2.5-.3.6-.4l1.5-2.9c.2-.4.5-.7.8-.9a.45.45 0 0 1 .32-.2l.9 1.8c.2.3.4.5.6.7l1.6-3.1c.03-.15.1-.3.15-.45z"/>
+                        </svg>
+                        <input type="text" id="questionInput" placeholder="Ask anything... e.g., 'What are the latest trends in AI governance?'">
+                        <button type="button" class="search-btn" id="searchBtn">Research</button>
+                    </div>
+                    <div class="example-chips">
+                        <span class="chip" data-question="What are the latest trends in AI governance?">AI governance trends</span>
+                        <span class="chip" data-question="Compare electric vehicle battery technologies">EV battery comparison</span>
+                        <span class="chip" data-question="What's the current market size of cloud computing?">cloud computing market</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="pipeline-tracker" id="pipelineSection" style="display:none;">
+                <h2 class="section-title">Research Pipeline</h2>
+                <div class="pipeline-steps">
+                    <div class="pipeline-step" id="stepPlan">
+                        <div class="step-circle">1</div>
+                        <div class="step-label">Plan</div>
+                        <div class="step-status" id="stepPlanStatus">Waiting</div>
+                        <div class="step-model" id="stepPlanModel">Nano</div>
+                        <div class="step-description" id="stepPlanDesc">Decomposing research question</div>
+                    </div>
+                    <div class="pipeline-step divider">→</div>
+                    <div class="pipeline-step" id="stepSearch">
+                        <div class="step-circle">2</div>
+                        <div class="step-label">Search</div>
+                        <div class="step-status" id="stepSearchStatus">Waiting</div>
+                        <div class="step-model" id="stepSearchModel">Tavily</div>
+                        <div class="step-description" id="stepSearchDesc">Web searching</div>
+                    </div>
+                    <div class="pipeline-step divider">→</div>
+                    <div class="pipeline-step" id="stepExtract">
+                        <div class="step-circle">3</div>
+                        <div class="step-label">Extract</div>
+                        <div class="step-status" id="stepExtractStatus">Waiting</div>
+                        <div class="step-model" id="stepExtractModel">Nano</div>
+                        <div class="step-description" id="stepExtractDesc">Fact extraction</div>
+                    </div>
+                    <div class="pipeline-step divider">→</div>
+                    <div class="pipeline-step" id="stepVerify">
+                        <div class="step-circle">4</div>
+                        <div class="step-label">Verify</div>
+                        <div class="step-status" id="stepVerifyStatus">Waiting</div>
+                        <div class="step-model" id="stepVerifyModel">Super</div>
+                        <div class="step-description" id="stepVerifyDesc">Claim verification</div>
+                    </div>
+                    <div class="pipeline-step divider">→</div>
+                    <div class="pipeline-step" id="stepWrite">
+                        <div class="step-circle">5</div>
+                        <div class="step-label">Write</div>
+                        <div class="step-status" id="stepWriteStatus">Waiting</div>
+                        <div class="step-model" id="stepWriteModel">Ultra</div>
+                        <div class="step-description" id="stepWriteDesc">Report generation</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="sources-panel" id="sourcesSection" style="display:none;">
+                <h2 class="section-title">Sources <span class="source-count">0</span></h2>
+                <div class="sources-list" id="sourcesList">
+                    <p class="empty-sources">No sources yet</p>
+                </div>
+            </section>
+
+            <section class="report-section" id="reportSection" style="display:none;">
+                <h2 class="section-title">Report</h2>
+                <div class="report-content" id="reportContent">
+                    <p class="loading-report">Generating report...</p>
+                </div>
+                <div class="conflicts-box" id="conflictsBox">
+                    <h3>Conflicting / Uncertain Information</h3>
+                    <p>No conflicts detected</p>
+                </div>
+                <div class="citations-panel" id="citationsPanel">
+                    <p class="no-citations">No citations</p>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <div class="footer-content">
+                <span class="stats-badge" id="totalTime">0s</span>
+                <span class="stats-badge" id="sourcesCount">0 sources</span>
+                <span class="stats-badge" id="tokensFast">0 tokens (Fast)</span>
+                <span class="stats-badge" id="tokensMid">0 tokens (Mid)</span>
+                <span class="stats-badge" id="tokensStrong">0 tokens (Strong)</span>
+            </div>
+        </footer>
+    </div>
+
+    <script type="module" src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
+    initSearch();
+    initChips();
+});
+
+function initTheme() {
+    const themeToggle = document.getElementById('themeToggle');
+    const moonIcon = document.getElementById('moonIcon');
+    const sunIcon = document.getElementById('sunIcon');
+    const html = document.documentElement;
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        html.setAttribute('data-theme', 'dark');
+        moonIcon.style.display = 'none';
+        sunIcon.style.display = 'block';
+    }
+    themeToggle.addEventListener('click', () => {
+        if (html.getAttribute('data-theme') === 'dark') {
+            html.setAttribute('data-theme', 'light');
+            moonIcon.style.display = 'none';
+            sunIcon.style.display = 'block';
+        } else {
+            html.setAttribute('data-theme', 'dark');
+            moonIcon.style.display = 'block';
+            sunIcon.style.display = 'none';
+        }
+    });
+}
+
+function initSearch() {
+    const searchBtn = document.getElementById('searchBtn');
+    const questionInput = document.getElementById('questionInput');
+    const searchArea = document.getElementById('searchArea');
+    const pipelineSection = document.getElementById('pipelineSection');
+    const sourcesSection = document.getElementById('sourcesSection');
+    const reportSection = document.getElementById('reportSection');
+    searchBtn.addEventListener('click', handleSearch);
+    questionInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleSearch(); });
+}
+function handleSearch() {
+    const question = (document.getElementById('questionInput').value || '').trim();
+    if (!question) return;
+    if (currentRunId) clearSSE(currentRunId);
+    document.getElementById('searchArea').style.display = 'none';
+    document.getElementById('pipelineSection').style.display = 'block';
+    document.getElementById('sourcesSection').style.display = 'none';
+    document.getElementById('reportSection').style.display = 'none';
+    resetPipelineUI();
+    currentRunId = `run_${Date.now()}`;
+    startPipeline(currentRunId, question);
+    document.getElementById('questionInput').value = '';
+}
+function initChips() {
+    document.querySelectorAll('.chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const question = chip.getAttribute('data-question');
+            document.getElementById('questionInput').value = question;
+            handleSearch();
+        });
+    });
+}
+let currentRunId = null;
+let sseTimeouts = new Map();
+function startPipeline(runId, question) {
+    const sseEndpoint = `/sse/${runId}`;
+    const evtSource = new EventSource(sseEndpoint);
+    const progressSteps = {
+        stepPlan: document.getElementById('stepPlanStatus'),
+        stepSearch: document.getElementById('stepSearchStatus'),
+        stepExtract: document.getElementById('stepExtractStatus'),
+        stepVerify: document.getElementById('stepVerifyStatus'),
+        stepWrite: document.getElementById('stepWriteStatus'),
+    };
+    const progressModels = {
+        stepPlan: document.getElementById('stepPlanModel'),
+        stepSearch: document.getElementById('stepSearchModel'),
+        stepExtract: document.getElementById('stepExtractModel'),
+        stepVerify: document.getElementById('stepVerifyModel'),
+        stepWrite: document.getElementById('stepWriteModel'),
+    };
+    const progressDescriptions = {
+        stepPlan: document.getElementById('stepPlanDesc'),
+        stepSearch: document.getElementById('stepSearchDesc'),
+        stepExtract: document.getElementById('stepExtractDesc'),
+        stepVerify: document.getElementById('stepVerifyDesc'),
+        stepWrite: document.getElementById('stepWriteDesc'),
+    };
+    evtSource.onopen = () => { console.log('SSE opened', runId); };
+    evtSource.onmessage = (event) => { try { handleSSEMessage(JSON.parse(event.data)); } catch(e) { console.error('SSE parse error', e); } };
+    evtSource.onerror = (error) => { console.error('SSE error', error); evtSource.close(); setTimeout(() => startPipeline(runId, question), 3000); };
+    sseTimeouts.set(runId, setTimeout(() => { evtSource.close(); }, 300000));
+}
+function clearSSE(runId) { const timeout = sseTimeouts.get(runId); if (timeout) { clearTimeout(timeout); sseTimeouts.delete(runId); } }
+function handleSSEMessage(message) {
+    const type = message.type; const data = message.data || {};
+    switch (type) {
+        case 'progress': updatePipelineProgress(data); break;
+        case 'complete': pipelineComplete(data); break;
+        case 'error': showError(data.message || 'Unknown error'); break;
+        default: console.log('Unknown type:', type);
+    }
+}
+function updatePipelineProgress(data) { const { step, step_description, model, done } = data; const stepEl = document.getElementById(`${step}Status`); if (stepEl) { stepEl.textContent = done ? 'Done' : 'Running'; stepEl.className = done ? 'step-status done' : 'step-status running'; const modelEl = document.getElementById(`${step}Model`); if (modelEl) { modelEl.textContent = model || '?'; modelEl.style.color = done ? 'var(--accent-green)' : 'var(--accent-blue)'; } } const descEl = document.getElementById(`${step}Desc`); if (descEl && step_description) descEl.textContent = step_description; }
+function pipelineComplete(data) {
+    document.getElementById('pipelineSection').style.display = 'none';
+    document.getElementById('sourcesSection').style.display = 'block';
+    document.getElementById('reportSection').style.display = 'block';
+    updateSources(data.sources || [], data.model_fast || 'Nano');
+    const reportContent = document.getElementById('reportContent');
+    if (data.report) { reportContent.innerHTML = `<div class="report-text" style="color: var(--text-primary-light); font-size: 0.85rem; line-height: 1.6; white-space: pre-wrap;">${data.report.replace(/\n/g, '<br>')}</div>`; }
+    updateCitations(data.citations || []);
+    updateConflicts(data);
+    updateStats(data);
+    document.getElementById('searchArea').style.display = 'none';
+    if (currentRunId) { clearSSE(currentRunId); currentRunId = null; }
+}
+function updateSources(sources, fastModel) { const sourcesList = document.getElementById('sourcesList'); const sourceCount = document.querySelector('.source-count'); if (!sourcesList || !sourceCount) return; if (sources.length === 0) { sourcesList.innerHTML = '<p class="empty-sources">No sources found</p>'; sourceCount.textContent = '0'; return; } sourceCount.textContent = `${sources.length} sources`; let html = ''; sources.forEach((source, i) => { const url = source.url || '#'; const domain = extractDomain(url); const title = source.title || 'Untitled'; const snippet = source.snippet || ''; html += `<div class="source-item" data-url="${url}"><div class="source-favicon" style="background: #${domain.split('').reduce((a, b) => a + b.charCodeAt(0).toString(16), '0').padStart(6, '0')}"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7h3v10H2V7l10-5 10 5-10 5zM2 17h3v5h10v-5H2z"/></svg></div><div class="source-info"><div class="source-title" title="${title}">${truncate(title, 100)}</div><div class="source-url" title="${url}">${truncate(url, 60)}</div></div></div>`; }); sourcesList.innerHTML = html; }
+function extractDomain(url) { try { return new URL(url).hostname.replace('www.', ''); } catch { return 'unknown'; } }
+function truncate(str, maxLen) { if (!str) return ''; return str.length > maxLen ? str.substring(0, maxLen) + '...' : str; }
+function updateCitations(citations) { const citationsPanel = document.getElementById('citationsPanel'); if (!citationsPanel) return; if (!citations || citations.length === 0) { citationsPanel.innerHTML = '<p class="no-citations">No citations</p>'; return; } let html = ''; citations.forEach((c, i) => { html += `<div class="citation-item">[${i + 1}] <a href="${c.url || '#'}" target="_blank">${c.url || '#'}</a></div>`; }); citationsPanel.innerHTML = html; }
+function updateConflicts(data) { const conflictsBox = document.getElementById('conflictsBox'); if (!conflictsBox) return; const reportText = document.querySelector('.report-text'); if (reportText) { const reportHtml = reportText.innerHTML; const uncertainMatch = reportHtml.match(/CONFIDENT OR UNCERTAIN INFO:([\s\S]*?)CITATIONS:/i); if (uncertainMatch) { conflictsBox.innerHTML = `<h3>Conflicting / Uncertain Information</h3><p>${uncertainMatch[1].trim().replace(/<br>/g, ' ')}</p>`; } else { conflictsBox.innerHTML = '<h3>Conflicting / Uncertain Information</h3><p>No conflicts detected</p>'; } } else { conflictsBox.innerHTML = '<h3>Conflicting / Uncertain Information</h3><p>No conflicts detected</p>'; } conflictsBox.classList.add('open'); }
+function updateStats(data) { const totalTime = data.total_time || 0; const sourcesCount = data.sources_count || 0; document.getElementById('totalTime').textContent = `${totalTime}s`; document.getElementById('sourcesCount').textContent = `${sourcesCount} sources`; }
+function showError(message) { console.error(message); alert(`ScoutAI Error: ${message}`); }
+function resetToSearchState() { document.getElementById('searchArea').style.display = 'block'; document.getElementById('pipelineSection').style.display = 'none'; document.getElementById('sourcesSection').style.display = 'none'; document.getElementById('reportSection').style.display = 'none'; resetPipelineUI(); }
+function resetPipelineUI() { document.querySelectorAll('.step-status').forEach(el => { el.textContent = 'Waiting'; el.className = 'step-status'; }); document.querySelectorAll('.step-model').forEach(el => { el.textContent = '?'; el.style.color = 'var(--text-secondary-light)'; }); }
+function showToast(message) { const toast = document.createElement('div'); toast.textContent = message; toast.style.position = 'fixed'; toast.style.bottom = '20px'; toast.style.right = '20px'; toast.style.background = 'var(--accent-green)'; toast.style.color = 'white'; toast.style.padding = '0.75rem 1.25rem'; toast.style.borderRadius = '8px'; toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'; toast.style.zIndex = '9999'; document.body.appendChild(toast); setTimeout(() => toast.remove(), 3000); }
