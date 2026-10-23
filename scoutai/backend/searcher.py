@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
+import re
 from typing import Any, List
 
+import requests
+from bs4 import BeautifulSoup
 from tavily import TavilyClient
 
 from scoutai.backend.config import TAVILY_API_KEY
@@ -28,11 +32,12 @@ async def search_tavily_queries(queries: List[str]) -> List[dict]:
     
     async def _single_search(query: str) -> List[dict]:
         try:
-            response = client.search(
+            response = await asyncio.to_thread(
+                client.search,
                 query=query,
-                search_depth="advanced",
+                search_depth="basic",
                 include_answer=False,
-                include_raw_content=True,
+                include_raw_content=False,
                 max_results=5,
             )
             results = response.get("results", [])
@@ -61,3 +66,52 @@ async def search_tavily_queries(queries: List[str]) -> List[dict]:
             deduped.append(s)
     logger.info(f"Tavily search returned {len(deduped)} unique sources for {len(queries)} queries")
     return deduped
+
+
+URL_RE = re.compile(r"https?://[^\s<>\"'\])}]+", re.IGNORECASE)
+
+
+def extract_urls(text: str, limit: int = 2) -> List[str]:
+    """Return unique http(s) URLs found in a message, capped at `limit`."""
+    seen = []
+    for match in URL_RE.findall(text or ""):
+        url = match.rstrip(".,;:!?")
+        if url not in seen:
+            seen.append(url)
+        if len(seen) >= limit:
+            break
+    return seen
+
+
+def fetch_url_text(url: str, max_chars: int = 6000, timeout: int = 20) -> dict:
+    """Fetch a URL and return {url, title, snippet} with readable text."""
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36"
+        )
+    }
+    response = requests.get(url, headers=headers, timeout=timeout)
+    response.raise_for_status()
+    content_type = (response.headers.get("content-type") or "").lower()
+
+    if "application/pdf" in content_type:
+        from pypdf import PdfReader
+
+        reader = PdfReader(io.BytesIO(response.content))
+        text = "\n".join((page.extract_text() or "") for page in reader.pages[:30])
+        title = url
+    elif "html" in content_type or not content_type:
+        soup = BeautifulSoup(response.text, "html.parser")
+        for tag in soup(["script", "style", "noscript", "nav", "footer", "header", "aside", "form"]):
+            tag.decompose()
+        title = (soup.title.get_text(strip=True) if soup.title else "") or url
+        text = " ".join(soup.get_text(" ").split())
+    else:
+        title = url
+        text = response.text
+
+    text = " ".join(text.split())
+    if not text:
+        raise ValueError("No readable text found at this URL")
+    return {"url": url, "title": title[:200], "snippet": text[:max_chars]}

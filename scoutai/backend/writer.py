@@ -2,49 +2,59 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, List
+from typing import Any, Dict, List, Optional
 
 import openai
-from typing_extensions import override
 
-from scoutai.backend.config import NEBIUS_BASE_URL, NEBIUS_API_KEY, AVAILABLE_MODELS
+from scoutai.backend.config import NEBIUS_BASE_URL, NEBIUS_API_KEY
 from scoutai.backend.prompts import WRITE_PROMPT
 
 logger = logging.getLogger(__name__)
 
 
-client = openai.OpenAI(
-    base_url=NEBIUS_BASE_URL,
-    api_key=NEBIUS_API_KEY,
-)
-
-
 def _call_model(model_name: str, prompt: str) -> str:
     try:
+        client = openai.OpenAI(base_url=NEBIUS_BASE_URL, api_key=NEBIUS_API_KEY, timeout=90.0, max_retries=0)
         completion = client.chat.completions.create(
             model=model_name,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
+            temperature=0.3,
+            max_tokens=4096,
         )
-        return completion.choices[0].message.content or ""
+        message = completion.choices[0].message
+        return (message.content or "").strip()
     except Exception as e:
-        logger.warning(f"Write model call failed for {model_name}: {e}")
+        logger.warning(f"Model call failed for {model_name}: {e}")
         return ""
 
 
-def _extract_citations_from_write(report_text: str) -> List[dict]:
-    citations = []
-    citations_marker = "CITATIONS:"
-    idx = report_text.find(citations_marker)
-    if idx >= 0:
-        section = report_text[idx + len(citations_marker):].strip()
-        for line in section.split("\n"):
-            line = line.strip()
-            if line.upper().startswith("URL:"):
-                url = line.split(":", 1)[1].strip()
-                if url.startswith("http"):
-                    citations.append({"ordinal": len(citations) + 1, "url": url})
-    return citations
+def _strip_code_fence(text: str) -> str:
+    text = text.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines)
+    return text.strip()
+
+
+def _fallback_report(
+    question: str,
+    executive_summary: str,
+    key_findings: List[str],
+    citations: List[dict],
+) -> str:
+    findings = "\n".join(f"{i + 1}. {f}" for i, f in enumerate(key_findings)) or "No findings available."
+    cites = "\n".join(
+        f"[{c.get('ordinal', i + 1)}] URL: {c.get('url', '')}" for i, c in enumerate(citations)
+    ) or "[1] URL: unavailable"
+    return (
+        f"EXECUTIVE SUMMARY:\n{executive_summary}\n\n"
+        f"KEY FINDINGS:\n{findings}\n\n"
+        "CONFIDENT OR UNCERTAIN INFO:\n"
+        "- Confirmed: Findings above are drawn from the collected sources.\n\n"
+        f"CITATIONS:\n{cites}\n"
+    )
 
 
 def write_report(
@@ -53,64 +63,32 @@ def write_report(
     key_findings: List[str],
     claims: List[dict],
     citations: List[dict],
-    model_name: str = None,
-) -> dict:
-    model = model_name or AVAILABLE_MODELS.get("strong", "nemotron-ultra")
-    
-    claims_summary = "\n".join([
-        f"- {c.get('claim', '')} (confidence: {c.get('confidence', 'Low')}, support: {c.get('support_count', 0)})"
-        for c in claims
-    ])
-    
-    citations_str = "\n".join([
-        f"[{i+1}] URL: {c.get('url', '')}"
-        for i, c in enumerate(citations)
-    ])
-    
-    findings_text = "\n".join(key_findings) if key_findings else ""
-    
-    prompt = WRITE_PROMPT.replace("{question}", question)
-    prompt = prompt.replace("{executive_summary}", executive_summary)
-    prompt = prompt.replace("{key_findings}", findings_text)
-    prompt = prompt.replace("{claims}", claims_summary)
-    prompt = prompt.replace("{citations}", citations_str)
-    
-    raw = _call_model(model, prompt)
-    logger.info(f"Write raw output from {model}: {raw[:100]}...")
-    
-    report = raw if raw else _fallback_report(question, key_findings, citations)
-    
-    citations_section = _extract_citations_from_write(report)
-    if not citations_section and citations:
-        last_period = report.rfind(".")
-        if last_period > 0:
-            report = report[:last_period] + "\n\nCITATIONS:\n" + citations_str
-    
-    return {"report": report, "citations": citations_section, "model": model}
+    model_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    model = model_name or "nemotron-ultra"
 
+    findings_text = "\n".join(f"- {f}" for f in key_findings) or "- No findings available."
+    cites_text = "\n".join(
+        f"[{c.get('ordinal', i + 1)}] URL: {c.get('url', '')}" for i, c in enumerate(citations)
+    ) or "[1] URL: unavailable"
+    try:
+        claims_text = json.dumps(claims, indent=2, ensure_ascii=False)[:6000]
+    except Exception:
+        claims_text = str(claims)[:6000]
 
-def _fallback_report(
-    question: str,
-    key_findings: List[str],
-    citations: List[dict],
-) -> str:
-    lines = [
-        f"EXECUTIVE SUMMARY: Based on the research question: \"{question}\". ",
-        "Key findings are summarized below with supporting evidence from collected sources.",
-        "",
-        "KEY FINDINGS:",
-    ]
-    
-    for i, finding in enumerate(key_findings[:5]):
-        lines.append(f"  {i+1}. {finding}")
-    
-    lines.append("")
-    lines.append("CONFIDENT OR UNCERTAIN INFO:")
-    lines.append("- Confirmed: The research question has been addressed with collected evidence.")
-    lines.append("- Uncertain/Conflicting: Further verification may be needed for some claims.")
-    lines.append("")
-    lines.append("CITATIONS:")
-    for i, c in enumerate(citations[:5]):
-        lines.append(f"  [{i+1}] URL: {c.get('url', '')}")
-    
-    return "\n".join(lines)
+    prompt = WRITE_PROMPT
+    prompt += (
+        f'\n\nOriginal question: "{question}"'
+        f"\n\nExecutive summary:\n{executive_summary}"
+        f"\n\nKey findings:\n{findings_text}"
+        f"\n\nVerified claims (JSON):\n{claims_text}"
+        f"\n\nCitations (use these exact URLs and ordinals):\n{cites_text}"
+        "\n\nWrite the final report now, following the required format exactly."
+    )
+
+    raw = _strip_code_fence(_call_model(model, prompt))
+    if not raw:
+        logger.warning("Writer model returned empty output; using fallback report")
+        raw = _fallback_report(question, executive_summary, key_findings, citations)
+
+    return {"report": raw, "citations": citations, "model": model}

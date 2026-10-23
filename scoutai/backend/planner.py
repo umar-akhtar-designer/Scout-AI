@@ -14,18 +14,23 @@ from scoutai.backend.prompts import PLAN_PROMPT
 logger = logging.getLogger(__name__)
 
 
-client = openai.OpenAI(
-    base_url=NEBIUS_BASE_URL,
-    api_key=NEBIUS_API_KEY,
-)
+def get_openai_client():
+    """Get or create the openai client."""
+    return openai.OpenAI(
+        base_url=NEBIUS_BASE_URL,
+        api_key=NEBIUS_API_KEY,
+        timeout=45.0,
+        max_retries=0,
+    )
 
 
 def _call_model(model_name: str, prompt: str) -> str:
     try:
-        completion = client.chat.completions.create(
+        completion = get_openai_client().chat.completions.create(
             model=model_name,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
+            max_tokens=900,
         )
         return completion.choices[0].message.content or ""
     except Exception as e:

@@ -7,28 +7,29 @@ from typing import Any, List
 import openai
 from typing_extensions import override
 
-from scoutai.backend.config import NEBIUS_BASE_URL, NEBIUS_API_KEY, AVAILABLE_MODELS
+from scoutai.backend.config import NEBIUS_BASE_URL, NEBIUS_API_KEY
 from scoutai.backend.prompts import VERIFY_PROMPT
+
+# Set openai API key and base URL at module level
+openai.api_key = NEBIUS_API_KEY
+openai.base_url = NEBIUS_BASE_URL
 
 logger = logging.getLogger(__name__)
 
 
-client = openai.OpenAI(
-    base_url=NEBIUS_BASE_URL,
-    api_key=NEBIUS_API_KEY,
-)
-
-
 def _call_model(model_name: str, prompt: str) -> str:
     try:
+        client = openai.OpenAI(base_url=NEBIUS_BASE_URL, api_key=NEBIUS_API_KEY, timeout=45.0, max_retries=0)
         completion = client.chat.completions.create(
             model=model_name,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
+            max_tokens=2000,
         )
-        return completion.choices[0].message.content or ""
+        message = completion.choices[0].message
+        return (message.content or getattr(message, "reasoning", "") or "")
     except Exception as e:
-        logger.warning(f"Verify model call failed for {model_name}: {e}")
+        logger.warning(f"Model call failed for {model_name}: {e}")
         return ""
 
 
@@ -47,21 +48,21 @@ def _parse_claims_from_verify(raw: str) -> List[dict]:
 
 
 def verify_claims(question: str, claims_input: List[dict], model_name: str = None) -> List[dict]:
-    model = model_name or AVAILABLE_MODELS.get("mid", "nemotron-super")
-    
+    model = model_name or "nemotron-super"
+
     claims_text = "\n".join([
-        f"- Claim {i+1}: {c.get('claim', '')} (support: {c.get('support_count', 0)})"
+        f"- Claim {i+1}: {c.get('claim', '')} (support: {c.get('support_count', 0)}; sources: {', '.join(c.get('supporting_sources', [])) or 'none'})"
         for i, c in enumerate(claims_input)
     ])
-    
+
     prompt = VERIFY_PROMPT.replace("{question}", question)
     prompt += f'\n\nOriginal question: "{question}"\n\nClaims to verify:\n{claims_text}\n\nFor each claim, determine support count from available sources, assign confidence (High if 2+ sources, Medium if 1 source, Low if 0), and flag conflicts.'
-    
+
     raw = _call_model(model, prompt)
     logger.info(f"Verify raw output from {model}: {raw[:100]}...")
-    
+
     claims = _parse_claims_from_verify(raw)
-    
+
     result = []
     for c in claims:
         result.append({
@@ -71,10 +72,10 @@ def verify_claims(question: str, claims_input: List[dict], model_name: str = Non
             "conflicts": c.get("conflicts", []),
             "supporting_sources": c.get("supporting_sources", []),
         })
-    
+
     if not result:
         result = _heuristic_verify(claims_input)
-    
+
     return result
 
 

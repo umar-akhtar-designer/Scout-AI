@@ -8,29 +8,14 @@ from typing import Any, List
 import openai
 from typing_extensions import override
 
-from scoutai.backend.config import NEBIUS_BASE_URL, NEBIUS_API_KEY, AVAILABLE_MODELS
+from scoutai.backend.config import NEBIUS_BASE_URL, NEBIUS_API_KEY
 from scoutai.backend.prompts import EXTRACT_PROMPT
 
+# Set openai API key and base URL at module level
+openai.api_key = NEBIUS_API_KEY
+openai.base_url = NEBIUS_BASE_URL
+
 logger = logging.getLogger(__name__)
-
-
-client = openai.OpenAI(
-    base_url=NEBIUS_BASE_URL,
-    api_key=NEBIUS_API_KEY,
-)
-
-
-def _call_model(model_name: str, prompt: str) -> str:
-    try:
-        completion = client.chat.completions.create(
-            model=model_name,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-        )
-        return completion.choices[0].message.content or ""
-    except Exception as e:
-        logger.warning(f"Extract model call failed for {model_name}: {e}")
-        return ""
 
 
 async def extract_from_source(
@@ -39,8 +24,7 @@ async def extract_from_source(
     content: str,
     model_name: str = None,
 ) -> dict:
-    """Extract key facts from a single source for a sub-question using Nemotron Nano."""
-    model = model_name or AVAILABLE_MODELS.get("fast", "nemotron-nano")
+    model = model_name or "nemotron-nano"
     prompt = EXTRACT_PROMPT.replace("{sub_question}", sub_question).replace(
         "{source_url}", source_url
     )
@@ -73,10 +57,30 @@ async def extract_parallel(
     items: List[dict],
     model_name: str = None,
 ) -> List[dict]:
-    """Extract from multiple sources in parallel."""
-    model = model_name or AVAILABLE_MODELS.get("fast", "nemotron-nano")
-    tasks = [
-        extract_from_source(item["sub_question"], item["source_url"], item["content"], model)
-        for item in items
-    ]
+    model = model_name or "nemotron-nano"
+    sem = asyncio.Semaphore(6)
+
+    async def _limited(item):
+        async with sem:
+            return await extract_from_source(
+                item["sub_question"], item["source_url"], item["content"], model
+            )
+
+    tasks = [_limited(item) for item in items]
     return await asyncio.gather(*tasks)
+
+
+def _call_model(model_name: str, prompt: str) -> str:
+    try:
+        client = openai.OpenAI(base_url=NEBIUS_BASE_URL, api_key=NEBIUS_API_KEY, timeout=45.0, max_retries=0)
+        completion = client.chat.completions.create(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=700,
+        )
+        message = completion.choices[0].message
+        return (message.content or getattr(message, "reasoning", "") or "")
+    except Exception as e:
+        logger.warning(f"Model call failed for {model_name}: {e}")
+        return ""

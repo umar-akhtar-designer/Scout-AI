@@ -85,6 +85,7 @@ class PipelineProgress(BaseModel):
 
 class NewQuestionRequest(BaseModel):
     question: str
+    model: Optional[str] = None
 
 
 class ReportData(BaseModel):
