@@ -13,6 +13,8 @@ Rules:
 - sub_questions and search_queries must have the same length (3-5 items each)
 - Each sub-question should be a distinct, non-overlapping aspect of the user question
 - Each search query should be concise (max 12 words) and optimized for Tavily search
+- Respect the user's stated background, degree level, location, and eligibility; exclude opportunities they cannot apply for
+- Prefer official program or university pages over job boards and listicles
 - Do NOT include any reasoning, apologies, or extra text outside the JSON
 """
 
@@ -65,9 +67,9 @@ EXECUTIVE SUMMARY: (2-3 sentences summarizing the overall answer)
 
 KEY FINDINGS: (numbered list of main findings, each ending with a citation like [1], [2] mapping to the numbered sources list at the bottom)
 
-CONFIDENT OR UNCERTAIN INFO: 
-- Confirmed: [list of claims with High confidence and their citations]
-- Uncertain/Conflicting: [list of claims with Medium or Low confidence or conflicts, with citations]
+CONFIDENT OR UNCERTAIN INFO:
+- Confirmed: [only if there are High-confidence claims]
+- Uncertain/Conflicting: [only if there are Medium/Low-confidence claims or conflicts]
 
 CITATIONS:
 [1] URL: https://... [2] URL: https://... 
@@ -76,7 +78,11 @@ Rules:
 - Every claim in the report must trace to a collected source
 - Never invent a source or URL
 - Number citations sequentially starting from [1]
+- Never prefix a finding with "Note:", "Confirmed:", or similar labels; state the finding directly
+- Do not repeat the KEY FINDINGS list verbatim in the confidence section; summarize confidence briefly
+- Omit empty bullets and headings; if every claim is High confidence, write one line saying all findings are supported by multiple sources
 - If evidence is weak, explicitly say so in the uncertain section
+- Only cite sources that actually support the claim
 - Format citations exactly as shown: "CITATIONS:" line with "URL: https://..." entries
 - The report must be self-contained and trustworthy
 """

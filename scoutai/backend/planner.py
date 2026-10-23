@@ -30,7 +30,7 @@ def _call_model(model_name: str, prompt: str) -> str:
             model=model_name,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=900,
+            max_tokens=2000,
         )
         return completion.choices[0].message.content or ""
     except Exception as e:

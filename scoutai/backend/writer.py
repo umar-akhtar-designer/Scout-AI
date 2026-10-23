@@ -43,16 +43,25 @@ def _fallback_report(
     executive_summary: str,
     key_findings: List[str],
     citations: List[dict],
+    claims: Optional[List[dict]] = None,
 ) -> str:
     findings = "\n".join(f"{i + 1}. {f}" for i, f in enumerate(key_findings)) or "No findings available."
     cites = "\n".join(
         f"[{c.get('ordinal', i + 1)}] URL: {c.get('url', '')}" for i, c in enumerate(citations)
     ) or "[1] URL: unavailable"
+    high = [c for c in (claims or []) if c.get("confidence") == "High"]
+    uncertain = [c for c in (claims or []) if c.get("confidence") in ("Medium", "Low")]
+    confidence = ""
+    if high:
+        confidence += f"- Confirmed: {len(high)} findings are supported by multiple sources.\n"
+    if uncertain:
+        confidence += f"- Uncertain: {len(uncertain)} findings rely on limited evidence.\n"
+    if not confidence:
+        confidence = "- All findings above are drawn from the collected sources.\n"
     return (
         f"EXECUTIVE SUMMARY:\n{executive_summary}\n\n"
         f"KEY FINDINGS:\n{findings}\n\n"
-        "CONFIDENT OR UNCERTAIN INFO:\n"
-        "- Confirmed: Findings above are drawn from the collected sources.\n\n"
+        f"CONFIDENT OR UNCERTAIN INFO:\n{confidence}\n"
         f"CITATIONS:\n{cites}\n"
     )
 
@@ -89,6 +98,6 @@ def write_report(
     raw = _strip_code_fence(_call_model(model, prompt))
     if not raw:
         logger.warning("Writer model returned empty output; using fallback report")
-        raw = _fallback_report(question, executive_summary, key_findings, citations)
+        raw = _fallback_report(question, executive_summary, key_findings, citations, claims)
 
     return {"report": raw, "citations": citations, "model": model}

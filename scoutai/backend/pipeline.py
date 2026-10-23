@@ -244,9 +244,10 @@ class PipelineRun:
         if not exec_summary:
             exec_summary = f"Research on '{self.question}' is in progress."
         key_findings = []
-        for i, c in enumerate(self.verify_results[:5]):
-            prefix = "Confirmed" if c.get("confidence") == "High" else "Note"
-            key_findings.append(f"{prefix}: {c.get('claim', '')[:100]}")
+        for c in self.verify_results[:5]:
+            claim = (c.get("claim") or "").strip()
+            if claim:
+                key_findings.append(claim)
         citations = []
         for i, source in enumerate(self.sources[:5]):
             citations.append({"ordinal": i + 1, "url": source.url})
