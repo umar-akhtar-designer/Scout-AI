@@ -13,8 +13,7 @@ Rules:
 - sub_questions and search_queries must have the same length (3-5 items each)
 - Each sub-question should be a distinct, non-overlapping aspect of the user question
 - Each search query should be concise (max 12 words) and optimized for Tavily search
-- Respect the user's stated background, degree level, location, and eligibility; exclude opportunities they cannot apply for
-- Prefer official program or university pages over job boards and listicles
+- Target authoritative sources: official program/university pages, .edu/.gov, arXiv, peer-reviewed papers. Avoid blogs, listicles, and job boards unless the user explicitly asks for them
 - Do NOT include any reasoning, apologies, or extra text outside the JSON
 """
 
@@ -55,34 +54,38 @@ Rules:
 - A claim is "Medium" confidence if supported by 1 source
 - A claim is "Low" confidence if supported by no sources or evidence is weak
 - Flag actual conflicts between sources
+- Exclude claims that do not help answer the user's question or do not apply to the user's stated situation (for example, postdoc-only programs for a recent bachelor's graduate)
 - Never invent sources or claims
 - Output STRICT JSON only, no surrounding text
 """
 
-WRITE_PROMPT = """You are a report writer. Given the user's original question, an executive summary, key findings, and a list of claims with confidence ratings and citations, write a complete, trustworthy report.
+WRITE_PROMPT = """You are a report writer. Given the user's original question, an executive summary, key findings, and a list of claims with confidence ratings and citations, write a complete, trustworthy report that directly answers the user.
+
+Write for the reader, not about the process. Never mention "claims", "confidence counts", or the pipeline in the executive summary.
 
 Required output format - STRICT. No reasoning, no apologies, just the report:
 
-EXECUTIVE SUMMARY: (2-3 sentences summarizing the overall answer)
+EXECUTIVE SUMMARY:
+(2-3 sentences that answer the question directly and name the most useful next step)
 
-KEY FINDINGS: (numbered list of main findings, each ending with a citation like [1], [2] mapping to the numbered sources list at the bottom)
+KEY FINDINGS:
+(3-6 numbered findings, most relevant first, each ending with a citation like [1]. Start with the fact itself - never with "Note:", "Claim", or "Finding")
 
 CONFIDENT OR UNCERTAIN INFO:
-- Confirmed: [only if there are High-confidence claims]
-- Uncertain/Conflicting: [only if there are Medium/Low-confidence claims or conflicts]
+- Confirmed: (up to 5 high-confidence points, or "None.")
+- Uncertain/Conflicting: (up to 5 medium/low-confidence points or conflicts, or "None.")
+- Do NOT copy the KEY FINDINGS list here. Only add context about trust, conflicts, or gaps that is not already stated above.
+- Drop claims that are irrelevant to the user's question or situation (for example, postdoc-only programs for a recent graduate).
 
 CITATIONS:
-[1] URL: https://... [2] URL: https://... 
+[1] URL: https://...
 
 Rules:
-- Every claim in the report must trace to a collected source
+- Every statement in the report must trace to a collected source
 - Never invent a source or URL
-- Number citations sequentially starting from [1]
-- Never prefix a finding with "Note:", "Confirmed:", or similar labels; state the finding directly
-- Do not repeat the KEY FINDINGS list verbatim in the confidence section; summarize confidence briefly
-- Omit empty bullets and headings; if every claim is High confidence, write one line saying all findings are supported by multiple sources
-- If evidence is weak, explicitly say so in the uncertain section
-- Only cite sources that actually support the claim
+- Number citations sequentially starting from [1] and reuse the same number for the same URL
+- Do not repeat the same finding in multiple sections
+- If evidence is weak, say so explicitly in the uncertain section
 - Format citations exactly as shown: "CITATIONS:" line with "URL: https://..." entries
 - The report must be self-contained and trustworthy
 """

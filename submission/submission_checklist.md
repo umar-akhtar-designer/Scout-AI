@@ -1,72 +1,57 @@
 # Submission Checklist: Nebius x NVIDIA Global AI Hackathon
 
-## DevPost Fields
+Deadline: **30 Oct 2026, 10:00pm GMT+5** · Track: **Best Apps and Agents**
 
-### Inspiration
-- [x] Added - research time problem description
+## Hard requirements
 
-### What it does
-- [x] Added - five-step pipeline explanation, model routing, Tavily integration
+- [x] **Nebius Token Factory**: every model call uses `https://api.tokenfactory.nebius.com/v1/`
+- [x] **NVIDIA open-source model**: Nemotron 3 Nano, Super, Ultra, and 3.5 Super VL
+- [x] **Tavily**: live web search is core to every run (also eligible for Best Use of Tavily)
+- [x] **Working project**: verified end-to-end locally (20–40s runs, real citations)
+- [x] **Public code repository**: https://github.com/umar-akhtar-designer/Scout-AI
+- [x] **Open-source license**: MIT, `LICENSE` at repo root, license badge in README
+- [x] **README**: setup, env vars, usage, architecture, deployment
+- [x] **Project description**: `submission/devpost_description.md`
+- [x] **Feedback**: `submission/feedback.md`
+- [x] **Pre-existing project note**: "What was significantly updated during the submission period" in the description
+- [x] **Live demo URL**: https://evolve-late-vanish.ngrok-free.dev (temporary tunnel — see note below)
+- [ ] **Demo video**: record from `submission/demo_video_script.md`, upload to YouTube (public, ≤ 3:00), add URL to Devpost
+- [ ] **Submit the Devpost form** (project, track, demo URL, video URL, repo URL, description, feedback)
+- [ ] **Keep the demo alive during judging** (or deploy permanently with `render.yaml`)
 
-### How we built it
-- [x] Added - architecture diagram, model routing table, technical decisions
+## Demo URL note
 
-### Challenges
-- [x] Added - model JSON output, parallel extraction, model routing, rate limits, SSE management
+The current demo runs through an ngrok tunnel on the development machine:
 
-### Accomplishments
-- [x] Added - end-to-end pipeline, visible verification, model routing, responsive UI, demo mode
+- ngrok may show a one-time "You are about to visit" page — click **Visit Site**.
+- The URL stops working if the machine sleeps, loses network, or the `ngrok` process stops.
+- For a durable URL, deploy with `render.yaml` (Render → New → Blueprint) and replace the link on Devpost.
 
-### What's next
-- [x] Added - caching, multi-language, browser extension, document upload, token tracking, self-correction
+## Judging criteria — where to point judges
 
-## Checklist Items
+| Criterion | Evidence |
+| --- | --- |
+| Technological implementation | Token Factory for all inference; per-step model routing; reasoning toggles for JSON reliability; SSE pipeline; timeouts/fallbacks |
+| Design | Complete chat product: streaming steps, citations, model picker, attachments, settings, dark mode, mobile layout |
+| Potential impact | Students/journalists/founders get a cited answer instead of ten tabs; relevance filtering prevents confidently-wrong answers |
+| Quality of the idea | Verification-first research agent: confidence tiers, conflict flags, explicit exclusion of inapplicable claims, evidence from links and uploads |
 
-### Technical Requirements
-- [x] **Nebius Token Factory**: App runs on OpenAI-compatible API at `https://api.tokenfactory.nebius.com/v1/`
-- [x] **NVIDIA Nemotron**: Uses at least one Nemotron model (Nano for Plan/Extract, Super for Verify, Ultra for Write)
-- [x] **Tavily**: Core product feature - web search, advanced depth, source extraction
-- [x] **MIT License**: Visible at top of repository with badge
-- [x] **README.md**: Setup and run instructions included
-- [x] **Public GitHub repo**: Open source with MIT license
+## Repository structure
 
-### Demo Materials
-- [x] **Working demo**: UI functional with SSE pipeline tracking
-- [x] **3-minute-or-shorter demo video**: `submission/demo_video_script.md` generated
-- [x] **Project description**: `submission/devpost_description.md` generated
-- [x] **Written feedback**: `submission/feedback.md` generated with Nebius/NVIDIA/Tavily feedback
+- [x] `scoutai/backend/`: FastAPI app, pipeline, planner, searcher, extractor, verifier, writer, prompts, config
+- [x] `scoutai/frontend/`: HTML template + CSS/JS + favicon
+- [x] `.env.example`: all required variables with real model IDs
+- [x] `Dockerfile`: portable image, honors `$PORT`
+- [x] `render.yaml`: one-click Render blueprint
+- [x] `requirements.txt`: pinned to tested versions
+- [x] `LICENSE` (MIT) and `.gitignore`
+- [x] `submission/`: description, video script, feedback, this checklist
 
-### Repository Structure
-- [x] **scoutai/backend/**: App, pipeline steps as separate modules, prompts, config, tests
-- [x] **scoutai/frontend/**: Single clean responsive page (HTML/CSS/JS)
-- [x] **scoutai/docs/**: Architecture diagram in Mermaid, screenshots placeholder
-- [x] **.env.example**: At root with all required env vars
-- [x] **Dockerfile**: For deployment
-- [x] **requirements.txt**: Python dependencies
-- [x] **LICENSE (MIT)**: At root
-- [x] **.gitignore**: Standard Python ignore patterns
-- [x] **docs/api_contract.md**: SSE event contract between pipeline <-> API <-> frontend
+## Final pass before submitting
 
-### UI Requirements
-- [x] **Search box with example questions as clickable chips**: Implemented
-- [x] **Live pipeline tracker**: Plan -> Search -> Extract -> Verify -> Write with status and model info
-- [x] **Sources panel**: Every source with favicon/domain and link
-- [x] **Final report**: Clickable numbered citations, confidence badges (High/Medium/Low), conflicts box
-- [x] **Buttons**: Copy report, download as Markdown, new question
-- [x] **Stats footer**: Total time, number of sources, tokens used per model
-- [x] **Friendly error messages and loading state**: Implemented
-- [x] **Mobile responsive**: CSS media queries for < 640px
-
-### Quality Bar
-- [x] **runs after**: `pip install -r requirements.txt`, copy `.env.example` to `.env`, start server with one command
-- [x] **Clean, commented, typed code**: No secrets committed
-- [x] **.gitignore**: Included
-- [x] **Demo mode (cached sample report)**: UI works even if API is down during judging
-- [x] **pytest tests**: Basic tests for planner JSON parsing, citation mapping, and API health
-
-### Submission Materials
-- [x] **devpost_description.md**: All sections filled (Inspiration, What it does, How we built it, Challenges, Accomplishments, What we learned, What's next)
-- [x] **demo_video_script.md**: Timed 2:45 script with exactly what to show on screen
-- [x] **feedback.md**: Structured feedback template for Nebius Token Factory, Nemotron models, and Tavily
-- [x] **submission_checklist.md**: Every DevPost field with tick list
----
+- [ ] Run one fresh question in the browser at the public URL
+- [ ] Confirm citations open real pages
+- [ ] Confirm an attached PDF and an image both return text
+- [ ] Confirm the video shows the app actually running and mentions Nebius Token Factory + Nemotron
+- [ ] Confirm the repo is public and the license is visible at the top
+- [ ] Confirm no `.env` or API keys were committed (`git log --all -- .env` is empty)

@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: scoutai
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NEBIUS_API_KEY
+        sync: false
+      - key: NEBIUS_BASE_URL
+        value: https://api.tokenfactory.nebius.com/v1/
+      - key: MODEL_FAST
+        value: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B
+      - key: MODEL_MID
+        value: nvidia/nemotron-3-super-120b-a12b
+      - key: MODEL_STRONG
+        value: nvidia/Nemotron-3-Ultra-550b-a55b
+      - key: TAVILY_API_KEY
+        sync: false

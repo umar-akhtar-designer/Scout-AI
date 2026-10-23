@@ -1,64 +1,69 @@
-# Feedback on Nebius Token Factory, Nemotron Models, and Tavily
+# Feedback on Nebius Token Factory, NVIDIA Nemotron, and Tavily
 
 ## Nebius Token Factory
 
 ### What worked well
 
-- OpenAI-compatible API interface was intuitive and required minimal learning curve
-- The `https://api.tokenfactory.nebius.com/v1/` endpoint was reliably accessible throughout development
-- API key management was straightforward; no complex authentication flow required
-- Response times were consistent for Nemotron Nano and Super models
-- Documentation was clear about base URL format and request structure
+- The OpenAI-compatible API made migration to the `openai` Python SDK (2.x) straightforward: only `base_url` and `api_key` changed.
+- The endpoint was stable during development; no authentication or networking issues.
+- Model availability in one place made A/B testing across Nano, Super, and Ultra trivial.
+- Error responses were fast and readable, which made timeout handling easier.
 
 ### What was confusing
 
-- Initial setup lacked clear examples of model naming conventions specific to Token Factory
-- Rate limit headers weren't immediately obvious; took some trial and error to understand retry behavior
-- Some Python SDK version mismatches caused import issues (solved by pinning openai==1.35.0)
+- Reasoning output is returned separately from `content`, and some models can spend the entire `max_tokens` budget on reasoning and return empty `content`. This is easy to miss and looks like a silent failure.
+- There is no obvious, documented way to discover which toggle disables thinking per model. We ended up using `chat_template_kwargs: {"enable_thinking": false}` after trial and error.
+- Model naming differs between marketing pages, the catalog, and the API (`nemotron-nano` vs `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`), which caused early configuration mistakes.
 
 ### Suggestions
 
-- Add a "model gallery" or auto-discovery feature that lists available Nemotron models for a given account
-- Provide sample notebooks for common patterns (SSE streaming, parallel calls, error handling)
-- Include rate limit information directly in API response headers with clearer documentation
+- Document reasoning controls (`enable_thinking`, thinking budgets) alongside each model, with an example of a JSON-only workload.
+- Return a clear warning when a response finishes with empty `content` because the reasoning budget was exhausted.
+- Add a `/models` response that includes capabilities (reasoning, vision, tool calling) and the exact model ID.
+- Provide one minimal notebook showing parallel requests, timeouts, and streaming.
 
-## Nemotron Models (Nano / Super / Ultra)
+## NVIDIA Nemotron Models (Nano / Super / Ultra / Super VL)
 
 ### What worked well
 
-- Nano was extremely fast and cost-effective for planning and extraction tasks; response latency under 500ms
-- Super hit the sweet spot for claim verification - good reasoning capability without the cost of Ultra
-- Ultra generated high-quality report prose with correct citation formatting on the first try
-- Model switching via environment variables was seamless; no code changes needed
-- All three models followed the same OpenAI chat completions interface
+- **Nano 30B-A3B** was excellent for planning and extraction when thinking was disabled: fast, cheap, and reliable at strict JSON.
+- **Super 120B-A12B** handled multi-source claim verification well and was noticeably better than Nano at judging relevance.
+- **Ultra 550B-A55B** produced the best final reports: correct citation formatting, clean structure, and sensible prioritization.
+- **Nemotron 3.5 Super VL** read screenshots, tables, and chart labels accurately enough for research context.
+- All models share the same chat-completions interface, so routing is a one-line change.
 
 ### What was confusing
 
-- Model naming inconsistency between Token Factory UI and the environment variable names (had to check documentation to confirm `nemotron-nano` vs other variants)
-- Token usage varied significantly between models for the same prompt size; needed to calibrate expectations
+- Reasoning behavior is inconsistent across prompts: the same JSON prompt sometimes returned valid JSON and sometimes only reasoning.
+- Output limits interact with reasoning in ways that are hard to predict; a 700-token limit is not enough headroom for a JSON task if thinking is on.
+- Model sizes and active-parameter counts are easy to confuse when choosing a default.
 
 ### Suggestions
 
-- Standardize model environment variable names across all NVIDIA services
-- Provide token usage estimates per model for common prompts
-- Add a "model selector" endpoint that recommends the optimal model size for a given task type
+- Publish recommended `max_tokens` and thinking settings per task type (JSON extraction, verification, long-form writing).
+- Make `enable_thinking` a first-class parameter in the OpenAI-compatible schema rather than a chat-template kwarg.
+- Document vision input limits (resolution, file size, supported formats) for the VL model.
 
 ## Tavily
 
 ### What worked well
 
-- `search_depth="advanced"` returned significantly more relevant results for complex research questions compared to basic depth
-- `include_raw_content=True` provided useful snippets for the extraction step without needing to parse HTML
-- Parallel query execution worked well; multiple searches ran concurrently without errors
-- Source deduplication by URL prevented redundant processing of the same article
+- Search results were relevant and returned clean `url`, `title`, and `content` fields.
+- Parallel query execution worked without rate-limit problems at our volume (3–5 queries per run).
+- URL deduplication is simple because results are stable and well-formed.
 
 ### What was confusing
 
-- The distinction between `include_answer`, `include_raw_content`, and `include_extracted_content` was not always clear from the documentation; needed to test each flag
-- Max_results parameter interaction with search_depth required some experimentation to optimize for cost vs. completeness
+- The difference between `include_answer`, `include_raw_content`, and extracted content is not obvious from the docs, and the cost/latency trade-offs are not stated.
+- `search_depth` has a large effect on latency and result quality; "advanced" is better for hard questions but slower than we wanted for a 30-second pipeline.
+- There is no built-in source-quality signal, so we had to add our own rules to avoid blogs and job boards.
 
 ### Suggestions
 
-- Add a "search preview" mode that shows top results before committing to a full search
-- Provide more detailed flag documentation with use-case-specific recommendations
-- Add optional entity extraction or key phrase identification in search results
+- Add a quality or authority score per result (official domains, `.edu/.gov`, arXiv) that callers can filter on.
+- Document expected latency and credit cost for each `search_depth` value.
+- Provide a "fetch and extract" endpoint so callers do not need a separate HTML parser for the top results.
+
+## Overall
+
+Nebius Token Factory plus Nemotron is a strong combination for an agent that must run several different model sizes in one request. The main friction was reasoning-control and model naming, both of which are documentation problems rather than infrastructure problems. Tavily remains the simplest way to add live web evidence, and its result shape is easy to feed into a verification step.

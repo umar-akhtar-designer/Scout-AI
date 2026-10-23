@@ -76,8 +76,9 @@ def _call_model(model_name: str, prompt: str) -> str:
         completion = client.chat.completions.create(
             model=model_name,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-            max_tokens=2500,
+            temperature=0,
+            max_tokens=1200,
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
         )
         message = completion.choices[0].message
         return (message.content or getattr(message, "reasoning", "") or "")

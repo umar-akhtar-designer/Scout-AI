@@ -1,10 +1,13 @@
 # ScoutAI
 
-Multi-model deep research agent built for the **Best Apps and Agents** hackathon. Ask a question, and ScoutAI plans the research, searches the web, reads sources and links, verifies claims, and streams back a cited report.
+Multi-model deep research agent built for the **Nebius x NVIDIA Global AI Hackathon** (Best Apps and Agents track). Ask a question, and ScoutAI plans the research, searches the web, reads sources, links, documents and images, verifies claims, and streams back a cited report.
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688?logo=fastapi&logoColor=white)
 ![NVIDIA Nemotron](https://img.shields.io/badge/NVIDIA-Nemotron-76B900?logo=nvidia&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
+
+**Live demo:** https://evolve-late-vanish.ngrok-free.dev — if ngrok shows a "You are about to visit" page, click **Visit Site**. This is a tunnel to the development machine; see [Deploy](#deploy) for permanent hosting.
 
 ## Features
 
@@ -15,6 +18,14 @@ Multi-model deep research agent built for the **Best Apps and Agents** hackathon
 - **Reads attachments**: PDF, DOCX, TXT/MD/CSV, and images (vision model)
 - **Citations** for every report, with claim-level verification
 - **Chat-style UI** with dark mode, model picker, profile/settings, and conversation cache
+
+## Hackathon submission
+
+- **Track:** Best Apps and Agents
+- **Inference:** 100% Nebius Token Factory (`https://api.tokenfactory.nebius.com/v1/`), no other model provider
+- **NVIDIA models:** Nemotron 3 Nano, Nemotron 3 Super, Nemotron 3 Ultra, plus Nemotron 3.5 Super VL for images
+- **Search:** Tavily (also entered for the Best Use of Tavily prize)
+- **What was built during the submission period:** the multi-model pipeline, SSE progress streaming, link reading, PDF/DOCX/image extraction, model picker, settings/profile, and the redesigned UI. The repository existed before the submission period as an early prototype; everything in the current commit was substantially updated.
 
 ## How it works
 
@@ -27,8 +38,18 @@ question ──▶ Planner ──▶ Tavily search ──▶ Extractor ──▶
 1. **Plan** — the fast model breaks the question into sub-queries.
 2. **Search** — Tavily returns results; URLs in the question are fetched directly and prepended as sources.
 3. **Extract** — relevant passages are pulled from each source (in parallel, capped concurrency).
-4. **Verify** — the mid model checks claims against the extracted evidence and counts supporting sources.
+4. **Verify** — the mid model checks claims against the evidence, counts supporting sources, and drops claims that do not apply to the user's situation.
 5. **Write** — the selected model produces the final report + numbered citations.
+
+### Model routing
+
+| Step | Model | Why |
+| --- | --- | --- |
+| Plan | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | Fast, cheap decomposition |
+| Extract | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | High-volume, short factual calls |
+| Verify | `nvidia/nemotron-3-super-120b-a12b` | Reasoning over multiple sources |
+| Write | `nvidia/Nemotron-3-Ultra-550b-a55b` | Best synthesis and citation quality |
+| Images | `nvidia/Nemotron-3.5-Super-VL` | Vision + OCR |
 
 ## Tech stack
 
@@ -113,12 +134,20 @@ scoutai/
 submission/       DevPost description, demo script, checklist
 ```
 
-## Docker
+## Deploy
+
+### Docker
 
 ```bash
 docker build -t scoutai .
 docker run --env-file .env -p 8000:8000 scoutai
 ```
+
+### Render (free tier)
+
+`render.yaml` is included. Create a Render account, connect this repository, choose **New → Blueprint**, and add `NEBIUS_API_KEY` and `TAVILY_API_KEY` when prompted. The service uses the Dockerfile and exposes `/health`.
+
+> Free instances sleep after inactivity, so the first request after idle can take ~30s. Keep a warm instance for judging.
 
 ## License
 
