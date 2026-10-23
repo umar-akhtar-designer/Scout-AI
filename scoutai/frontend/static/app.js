@@ -616,10 +616,39 @@ function formatReport(text) {
         }
     };
 
-    for (const raw of lines) {
+    const tableCells = (row) =>
+        row.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+
+    for (let i = 0; i < lines.length; i++) {
+        const raw = lines[i];
         const line = raw.trim();
         if (!line) {
             closeList();
+            continue;
+        }
+
+        if (
+            line.startsWith("|") &&
+            line.endsWith("|") &&
+            i + 1 < lines.length &&
+            lines[i + 1].includes("-") &&
+            /^[|\s:-]+$/.test(lines[i + 1].trim())
+        ) {
+            closeList();
+            const header = tableCells(line);
+            html += '<div class="table-wrap"><table><thead><tr>';
+            for (const cell of header) html += `<th>${inlineFormat(cell)}</th>`;
+            html += "</tr></thead><tbody>";
+            i += 2;
+            while (i < lines.length && lines[i].trim().startsWith("|")) {
+                const row = tableCells(lines[i].trim());
+                html += "<tr>";
+                for (const cell of row) html += `<td>${inlineFormat(cell)}</td>`;
+                html += "</tr>";
+                i++;
+            }
+            html += "</tbody></table></div>";
+            i--;
             continue;
         }
 
@@ -665,6 +694,17 @@ function conversationalReply(text) {
     const lower = q.toLowerCase();
     if (!q || q.length > 90) return null;
 
+    if (
+        /^(can|could|would|will)\s+you\s+(type|write|reply|answer|speak|talk|likho|batao|bolo)\b/.test(lower) ||
+        /^(please\s+)?(type|write|reply|answer|speak|talk|likho|batao|bolo)\s+(in|mein|me)\b/.test(lower) ||
+        /^(roman urdu|urdu|english|hindi)\s+(mein|me)\b/.test(lower) ||
+        /^(mujhe\s+)?(roman urdu|urdu|english)\s+(mein|me)\s+(likho|batao|bolo|reply|answer)\b/.test(lower)
+    ) {
+        return "Haan, bilkul! Main Roman Urdu mein bhi jawab de sakta hoon. Aap koi research sawal poochhein — jaise *AI/ML research opportunities for fresh graduates* — aur report usi zubaan mein milegi.\n\nEnglish mein poochna ho to bilkul theek hai.";
+    }
+    if (/^(salam|assalam|asalam|aoa)\b/.test(lower)) {
+        return "Walaikum assalam! Main **ScoutAI** hoon. Kisi bhi topic par research sawal poochhein, main sources ke saath report banaunga.";
+    }
     if (/\b(what('?s| is)?\s+your\s+name|who are you|what are you)\b/.test(lower)) {
         return "Hi! I'm **ScoutAI**, a multi-model deep research assistant. I run a 5-step pipeline — plan, search, extract, verify, write — using NVIDIA Nemotron models plus live web search, then return a cited brief.\n\nAsk me something like *What are the latest trends in AI governance?* and I'll get to work.";
     }

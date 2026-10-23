@@ -38,7 +38,7 @@ async def search_tavily_queries(queries: List[str]) -> List[dict]:
                 search_depth="basic",
                 include_answer=False,
                 include_raw_content=False,
-                max_results=5,
+                max_results=7,
             )
             results = response.get("results", [])
             sources = []

@@ -43,9 +43,84 @@ def _strip_code_fence(text: str) -> str:
     return text.strip()
 
 
+URDU_MARKERS = {
+    "kya", "kaise", "kyun", "mujhe", "chahiye", "batao", "bataen", "likho",
+    "pooch", "sawal", "aap", "mera", "meri", "hum", "tum", "yaar", "acha",
+    "theek", "hai", "hain", "nahi", "ke", "ki", "ka", "ko", "se", "par",
+    "liye", "wala", "wale", "madad", "karo", "karein",
+}
+
+
+def _language_instruction(question: str) -> str:
+    if re.search(r"[\u0600-\u06FF]", question or ""):
+        return "Write the entire report in Urdu script. Keep citations and URLs unchanged."
+    words = set(re.findall(r"[a-z]+", (question or "").lower()))
+    if len(words & URDU_MARKERS) >= 2:
+        return (
+            "The user wrote in Roman Urdu. Write the entire report in Roman Urdu using Latin script, "
+            "including the executive summary and findings. Keep citations and URLs unchanged."
+        )
+    return "Write the report in English."
+
+
+def _norm_text(text: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9 ]", " ", (text or "").lower()).split())
+
+
+def _similar(a: set, b: set) -> bool:
+    if not a or not b:
+        return False
+    shorter = a if len(a) <= len(b) else b
+    if len(shorter) < 4:
+        return False
+    return len(a & b) / len(shorter) >= 0.8
+
+
+def _dedupe_semicolons(line: str) -> str:
+    if line.count(";") < 3:
+        return line
+    parts = [part.strip() for part in line.split(";") if part.strip()]
+    kept = []
+    kept_tokens = []
+    for part in parts:
+        tokens = set(_norm_text(part).split())
+        if any(_similar(tokens, other) for other in kept_tokens):
+            continue
+        kept.append(part)
+        kept_tokens.append(tokens)
+        if len(kept) >= 8:
+            break
+    return "; ".join(kept)
+
+
+def _dedupe_lines(text: str) -> str:
+    out = []
+    seen = set()
+    for line in text.splitlines():
+        match = re.match(r"^(\s*(?:[-*]|\d+[.)])\s+)(.*)$", line)
+        if match:
+            key = _norm_text(match.group(2))
+            if key and key in seen:
+                continue
+            if key:
+                seen.add(key)
+        out.append(line)
+    return "\n".join(out)
+
+
 def _clean_report(text: str) -> str:
+    upper = text.upper()
+    start = upper.find("EXECUTIVE SUMMARY:")
+    if start > 0:
+        text = text[start:]
     text = re.sub(r"(?m)^(\s*(?:[-*]\s*|\d+\.\s*)?)Note:\s*", r"\1", text)
     text = re.sub(r"(?m)^(\s*(?:[-*]\s*|\d+\.\s*)?)Claim\s+\d+:\s*", r"\1", text)
+    lines = []
+    for line in text.splitlines():
+        if "Confirmed:" in line or "Uncertain" in line:
+            line = _dedupe_semicolons(line)
+        lines.append(line)
+    text = _dedupe_lines("\n".join(lines))
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
@@ -95,13 +170,14 @@ def write_report(
         f"\n\nKey findings:\n{findings_text}"
         f"\n\nVerified claims (JSON):\n{claims_text}"
         f"\n\nCitations (use these exact URLs and ordinals):\n{cites_text}"
+        f"\n\nLanguage: {_language_instruction(question)}"
         "\n\nWrite the final report now, following the required format exactly."
     )
 
-    raw = _strip_code_fence(_call_model(model, prompt))
+    raw = _strip_code_fence(_call_model(model, prompt, disable_thinking=True))
     if not raw:
-        logger.warning("Writer returned empty content; retrying without extended thinking")
-        raw = _strip_code_fence(_call_model(model, prompt, disable_thinking=True))
+        logger.warning("Writer returned empty content; retrying with extended thinking")
+        raw = _strip_code_fence(_call_model(model, prompt))
     if not raw:
         logger.warning("Writer model returned empty output; using fallback report")
         raw = _fallback_report(question, executive_summary, key_findings, citations)

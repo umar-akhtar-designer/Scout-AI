@@ -70,12 +70,14 @@ EXECUTIVE SUMMARY:
 
 KEY FINDINGS:
 (3-6 numbered findings, most relevant first, each ending with a citation like [1]. Start with the fact itself - never with "Note:", "Claim", or "Finding")
+- If the user asks for a comparison or a table, include a compact Markdown table in this section.
+- If the user asks for next steps, make the final numbered items concrete next steps.
 
 CONFIDENT OR UNCERTAIN INFO:
-- Confirmed: (up to 5 high-confidence points, or "None.")
-- Uncertain/Conflicting: (up to 5 medium/low-confidence points or conflicts, or "None.")
+- Confirmed: (up to 5 high-confidence points as separate bullet lines, or "None.")
+- Uncertain/Conflicting: (up to 5 medium/low-confidence points or conflicts as separate bullet lines, or "None.")
 - Do NOT copy the KEY FINDINGS list here. Only add context about trust, conflicts, or gaps that is not already stated above.
-- Drop claims that are irrelevant to the user's question or situation (for example, postdoc-only programs for a recent graduate).
+- Never repeat the same point twice in any section. Drop claims that are irrelevant to the user's question or situation (for example, postdoc-only programs for a recent graduate).
 
 CITATIONS:
 [1] URL: https://...

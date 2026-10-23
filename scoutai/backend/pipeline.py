@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 from typing import Any, Dict, List, Optional, Callable
 
@@ -21,6 +22,22 @@ from scoutai.backend.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+MAX_CLAIMS = 24
+
+
+def _claim_key(text: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9 ]", " ", (text or "").lower()).split())
+
+
+def _same_claim(a: set, b: set) -> bool:
+    if not a or not b:
+        return False
+    shorter = a if len(a) <= len(b) else b
+    if len(shorter) < 4:
+        return False
+    overlap = len(a & b) / len(shorter)
+    return overlap >= 0.8
 
 
 class PipelineRun:
@@ -194,9 +211,7 @@ class PipelineRun:
             self._progress(step="verify", status="done", description="No extracted claims to verify", model=self.model_mid)
             self.verify_results = []
             return
-        claims_input = []
-        claim_sources = {}
-        claim_order = []
+        entries = []
         for er in self.extract_results:
             source_url = er.get("source_url", "")
             for bullet in er.get("bullets", []):
@@ -204,19 +219,30 @@ class PipelineRun:
                 text = (text or "").strip()
                 if not text:
                     continue
-                key = " ".join(text.lower().split())
-                if key not in claim_sources:
-                    claim_sources[key] = {"claim": text, "sources": set()}
-                    claim_order.append(key)
+                key = _claim_key(text)
+                tokens = set(key.split())
+                match = None
+                for entry in entries:
+                    if entry["key"] == key or _same_claim(tokens, entry["tokens"]):
+                        match = entry
+                        break
+                if match is None:
+                    match = {"key": key, "claim": text, "tokens": tokens, "sources": set()}
+                    entries.append(match)
                 if source_url:
-                    claim_sources[key]["sources"].add(source_url)
-        for key in claim_order:
-            entry = claim_sources[key]
-            claims_input.append({
+                    match["sources"].add(source_url)
+
+        claims_input = [
+            {
                 "claim": entry["claim"],
                 "support_count": len(entry["sources"]),
                 "supporting_sources": sorted(entry["sources"]),
-            })
+            }
+            for entry in entries
+        ]
+        claims_input.sort(key=lambda c: c["support_count"], reverse=True)
+        claims_input = claims_input[:MAX_CLAIMS]
+        logger.info(f"Prepared {len(claims_input)} unique claims for verification")
         self._progress(step="verify", status="running", description="Verifying claims against sources...", model=self.model_mid)
         try:
             self.verify_results = await asyncio.wait_for(

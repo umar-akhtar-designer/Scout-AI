@@ -527,6 +527,29 @@ svg { display: block; }
     padding: 1px 5px;
     border-radius: 5px;
 }
+.table-wrap {
+    overflow-x: auto;
+    margin: 4px 0 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+.content table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+}
+.content th, .content td {
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--border);
+}
+.content th {
+    background: var(--bg-hover);
+    font-weight: 600;
+    white-space: nowrap;
+}
+.content tbody tr:last-child td { border-bottom: none; }
 
 /* pipeline status inside assistant */
 .status-card {
